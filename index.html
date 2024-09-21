@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>HEBCA网址导航</title>
+    <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HEBCA网址导航 - 您的个性化网址收藏夹，轻松管理和访问您喜爱的网站。">
+  </head>
+
+  <body>
+    <header class="header">
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h1>HEBCA网址导航</h1>
+        <div class="search-container">
+          <input type="text" id="search" placeholder="搜索网址..." />
+        </div>
+      </div>
+    </header>
+    <div class="container">
+      <div class="main-content">
+        <aside class="sidebar">
+          <nav id="favNav"></nav>
+        </aside>
+        <main class="content">
+          <div id="siteContainer"></div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      fetch("favorites.html")
+        .then((response) => response.text())
+        .then((html) => {
+          const parser = new DOMParser();
+          const favDoc = parser.parseFromString(html, "text/html");
+
+          function generateNavHtml(el, level = 1) {
+            let html = "<ul>";
+            for (const child of el.children) {
+              if (child.tagName === "DT") {
+                const h3 = child.querySelector("h3");
+                if (h3 && h3.textContent.trim() !== "个人") {
+                  html += `<li><h3 class="level-${level}">${h3.textContent}</h3>`;
+                  const subDl = child.querySelector("dl");
+                  if (subDl) {
+                    html += generateNavHtml(subDl, level + 1);
+                  }
+                  html += "</li>";
+                }
+              }
+            }
+            html += "</ul>";
+            return html;
+          }
+
+          function generateSiteHtml(el) {
+            const url = el.href;
+            const title = el.textContent;
+            const icon = el.getAttribute("ICON") || "flag-cn.png";
+
+            return `
+            <div class="site" data-url="${url}">
+              <div class="site-header">
+                <img src="${icon}" alt="${title}" onerror="this.src='flag-cn.png'">
+                <h3><a href="javascript:void(0)">${title}</a></h3>
+              </div>
+              <p title="${url}">${url}</p>
+            </div>
+          `;
+          }
+
+          function generateCategoryHtml(category, sites, level) {
+            if (category.trim() === "个人") {
+              return ""; // 如果类别是"个人"，返回空字符串
+            }
+            return `
+            <div class="category category-level-${level}">
+              <h2>${category}</h2>
+              <div class="grid">
+                ${sites.map(generateSiteHtml).join("")}
+              </div>
+            </div>
+          `;
+          }
+
+          const mainDl = favDoc.querySelector("dl");
+          if (mainDl) {
+            const navHtml = generateNavHtml(mainDl);
+            document.getElementById("favNav").innerHTML = navHtml;
+
+            let currentCategory = "";
+            let currentSites = [];
+            let allCategoriesHtml = "";
+            let currentLevel = 1;
+
+            function processElement(element, level = 1) {
+              const h3 = element.querySelector("h3");
+              if (h3) {
+                if (currentCategory && currentCategory !== "个人") {
+                  allCategoriesHtml += generateCategoryHtml(
+                    currentCategory,
+                    currentSites,
+                    currentLevel
+                  );
+                  currentSites = [];
+                }
+                currentCategory = h3.textContent;
+                currentLevel = level;
+              } else if (currentCategory !== "个人") {
+                const a = element.querySelector("a");
+                if (a) {
+                  currentSites.push(a);
+                }
+              }
+
+              const subDl = element.querySelector("dl");
+              if (subDl) {
+                Array.from(subDl.children).forEach((child) =>
+                  processElement(child, level + 1)
+                );
+              }
+            }
+
+            Array.from(mainDl.children).forEach((child) =>
+              processElement(child)
+            );
+
+            if (currentCategory && currentCategory !== "个人") {
+              allCategoriesHtml += generateCategoryHtml(
+                currentCategory,
+                currentSites,
+                currentLevel
+              );
+            }
+
+            document.getElementById("siteContainer").innerHTML =
+              allCategoriesHtml;
+          } else {
+            console.error("No main DL found in favorites.html");
+          }
+
+          // 添加点击事件监听器
+
+          document
+            .getElementById("favNav")
+            .addEventListener("click", function (e) {
+              if (e.target.tagName === "H3") {
+                const categoryName = e.target.textContent.trim();
+                const categoryElements =
+                  document.querySelectorAll(".category h2");
+                for (let element of categoryElements) {
+                  if (
+                    element.textContent.trim().toLowerCase() ===
+                    categoryName.toLowerCase()
+                  ) {
+                    element.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                    break;
+                  }
+                }
+              }
+            });
+
+          // 添加搜索功能
+          const searchInput = document.getElementById("search");
+
+          searchInput.addEventListener("input", function () {
+            const searchTerm = this.value.toLowerCase();
+            const sites = document.querySelectorAll(".site");
+
+            sites.forEach((site) => {
+              const title = site
+                .querySelector("h3 a")
+                .textContent.toLowerCase();
+              const url = site.querySelector("p").textContent.toLowerCase();
+              if (title.includes(searchTerm) || url.includes(searchTerm)) {
+                site.style.display = "";
+              } else {
+                site.style.display = "none";
+              }
+            });
+          });
+
+          // 添加点击事件监听器到 siteContainer
+          document
+            .getElementById("siteContainer")
+            .addEventListener("click", function (e) {
+              const site = e.target.closest(".site");
+              if (site) {
+                const url = site.dataset.url;
+                if (url) {
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }
+              }
+            });
+        });
+    </script>
+  </body>
+</html>
